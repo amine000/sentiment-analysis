@@ -1,0 +1,91 @@
+# LSTM for international airline passengers problem with regression framing
+import numpy as np
+import matplotlib.pyplot as plt
+from pandas import read_csv
+import math
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM, Activation
+from keras.utils import np_utils
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
+
+"""
+# convert an array of values into a dataset matrix
+def create_dataset(dataset, look_back=1):
+	dataX, dataY = [], []
+	for i in range(len(dataset)-look_back-1):
+		a = dataset[i:(i+look_back), 0]
+		dataX.append(a)
+		dataY.append(dataset[i + look_back, 0])
+	return np.array(dataX), np.array(dataY)
+# fix random seed for reproducibility
+np.random.seed(7)
+# load the dataset
+dataframe = read_csv('international-airline-passengers.csv', usecols=[1], engine='python', skipfooter=3)
+dataset = dataframe.values
+dataset = dataset.astype('float32')
+# normalize the dataset
+scaler = MinMaxScaler(feature_range=(0, 1))
+dataset = scaler.fit_transform(dataset)
+# split into train and test sets
+train_size = int(len(dataset) * 0.67)
+test_size = len(dataset) - train_size
+train, test = dataset[0:train_size,:], dataset[train_size:len(dataset),:]
+# reshape into X=t and Y=t+1
+look_back = 1
+trainX, trainY = create_dataset(train, look_back)
+testX, testY = create_dataset(test, look_back)
+trainX = np.reshape(trainX, (trainX.shape[0], 1, trainX.shape[1]))
+testX = np.reshape(testX, (testX.shape[0], 1, testX.shape[1]))
+"""
+
+epochs = 5
+n_samples = 100
+input_dim = 300
+input_length = 15
+X = np.random.random_sample(size=(n_samples, input_length, input_dim))
+Y = np.random.choice([i for i in range(6)], n_samples)
+Y_categorical = np_utils.to_categorical(Y)
+# reshape input to be [samples, time steps, features]
+# (samples, sequence_length=15, features=300)
+# create and fit the LSTM network
+model = Sequential()
+# input_dim = size of wordvec, input_length = length of sequence
+#model.add(LSTM(128, input_dim=input_dim, input_length=input_length))
+model.add(LSTM(4, input_shape=(input_length, input_dim)))
+#model.add(LSTM(4, input_shape=(1, look_back)))
+model.add(Dense(6)) # number of emotions
+model.add(Activation('softmax'))
+model.summary()
+model.compile(loss='categorical_crossentropy',optimizer='Adam', metrics=['accuracy'])
+fit = model.fit(X, Y_categorical, epochs=epochs, batch_size=1, verbose=1)
+
+"""
+# make predictions
+trainPredict = model.predict(trainX)
+testPredict = model.predict(testX)
+# invert predictions
+trainPredict = scaler.inverse_transform(trainPredict)
+trainY = scaler.inverse_transform([trainY])
+testPredict = scaler.inverse_transform(testPredict)
+testY = scaler.inverse_transform([testY])
+# calculate root mean squared error
+trainScore = math.sqrt(mean_squared_error(trainY[0], trainPredict[:,0]))
+print('Train Score: %.2f RMSE' % (trainScore))
+testScore = math.sqrt(mean_squared_error(testY[0], testPredict[:,0]))
+print('Test Score: %.2f RMSE' % (testScore))
+# shift train predictions for plotting
+trainPredictPlot = np.empty_like(dataset)
+trainPredictPlot[:, :] = np.nan
+trainPredictPlot[look_back:len(trainPredict)+look_back, :] = trainPredict
+# shift test predictions for plotting
+testPredictPlot = np.empty_like(dataset)
+testPredictPlot[:, :] = np.nan
+testPredictPlot[len(trainPredict)+(look_back*2)+1:len(dataset)-1, :] = testPredict
+# plot baseline and predictions
+plt.plot(scaler.inverse_transform(dataset))
+plt.plot(trainPredictPlot)
+plt.plot(testPredictPlot)
+plt.show()
+"""
