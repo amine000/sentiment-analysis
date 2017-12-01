@@ -2,15 +2,11 @@
 
 import sys, socket, select, random
 from tkinter import *
-from nltk.corpus import brown
-import nltk
 import threading, time
 import atexit
 import errno
 import GIFSearch
 import re
-import os
-from PIL import Image, ImageTk
 
 inputPort = 54321
 global_sock = None 
@@ -22,8 +18,7 @@ chatBox = None
 st = None
 quitProgram = False
 root = None
-suggestions = []
-gifs_used = []
+suggestion = None
 
 
 class myThread (threading.Thread):
@@ -43,9 +38,9 @@ class myThread (threading.Thread):
 def exitFunc():
     inputClient.close()
     global_sock.close()
+    s.send(None)
     s.close()
-    #print("closed everything")
-    sys.exit()
+    print("closed everything")
 
 # Windows doesn't support select on sys.stdin, so use a socket for input messages
 def inputSocket():
@@ -76,20 +71,9 @@ def inputSocket():
             sys.exit()
     print("broke out here")
 
-def is_gif(message):
-    return (re.search('\[GIF\]', message) != None)
-
-def new_temp_file():
-    global gifs_used
-    filename = str(random.randint(0,99999)) + 'temp.gif'
-    #print(filename)
-    gifs_used.append(filename)
-    return filename
-
 def chat_client():
     global s
-    global suggestions
-    global root
+    global suggestion
     while (not inputReady):
         pass
 
@@ -113,9 +97,6 @@ def chat_client():
      
     chatBox.insert(END, 'Connected to remote host. You can start sending messages now!\n')
 
-    text = brown.words(categories=['news', 'editorial','humor','reviews','fiction','lore'])
-    fdist = nltk.FreqDist(w.lower() for w in text)
-
     while (not quitProgram):
         socket_list = [global_sock, s]
         # Get the list sockets which are readable
@@ -131,37 +112,16 @@ def chat_client():
                     else :
                         #print data
                         message = data.decode("utf-8")
-                        if (is_gif(message)):
-                            #print('hello')
-                            parsed_message = re.split('\[GIF\]', message)
-                            gifUrl = parsed_message[1]
-                            i = parsed_message[2]
-                            gif = GIFSearch.create_GIF_label(gifUrl, new_temp_file(), root, i)
-                            chatBox.config(state=NORMAL)
-                            chatBox.insert(END, parsed_message[0]) 
-                            chatBox.window_create(END, window=gif)
-                            chatBox.insert(END, '\n')
-                            chatBox.config(state=DISABLED) 
-                            if (len(suggestions) != 0):
-                                for x in suggestions:
-                                    x.destroy()
-                                suggestions = []
-                            gif.config(cursor='arrow')
-                        else:
-                            chatBox.config(state=NORMAL)
-                            chatBox.insert(END, message) 
-                            chatBox.config(state=DISABLED)  
+                        chatBox.config(state=NORMAL)
+                        chatBox.insert(END, message) 
+                        chatBox.config(state=DISABLED)  
 
-                            # Remove current suggestion and replace
-                            if (len(suggestions) != 0):
-                                for x in suggestions:
-                                    x.destroy()
-                            # If not user entered message or your own message, suggest
-                            if ((re.match('User', message) == None) and (re.search('\[ Me \]', message) == None)):
-                                suggestions = GIFSearch.search(message, 'lit.gif', root, fdist) 
-                                for i, suggestion in enumerate(suggestions):
-                                    suggestion.grid(row=1 + i, column = 2, padx=(1,7))
-                                    suggestion.bind("<Button-1>", lambda e, gif = suggestion: sendGIF(gif))
+                        # Remove current suggestion and replace
+                        if (suggestion is not None):
+                            suggestion.destroy()
+                        if (re.match('User', message) == None):
+                            suggestion = GIFSearch.search(message, 'lit.gif', root) 
+                            suggestion.grid(row=0, column = 2, rowspan=3)
                 else :
                     # user entered a message
                     msg = sock.recv(4096)
@@ -170,25 +130,17 @@ def chat_client():
         except KeyboardInterrupt:
             print("HAHAHAHAHAHAHA")
             sys.exit()
-    #print ("quit naturally")
-    close(root)
-    for gif in gifs_used:
-        print('removing ' + gif)
-        os.remove(gif)
+    print ("quit")
 
 def sendMsg(searchBox):
     msg = searchBox.get()
     inputClient.send(str.encode(msg))
 
-def sendGIF(GIFLabel):
-    inputClient.send(str.encode('[GIF]' + GIFLabel.url + '[GIF]' + str(GIFLabel.result_index)))
-
 def close(root):
     global quitProgram
     quitProgram = True
     root.destroy()
-    #print ("Root destroyed")
-    return (exitFunc())
+    print ("Root destroyed")
 
 def startGUI():
     global inputReady
@@ -205,29 +157,25 @@ def startGUI():
     except:
         print("fucked up")
     root = Tk()
-    root.configure(background="#e8eff4")
 
-    title = Label(root, text="GIF SUGGESTER CHAT ROOM", bg="#e8eff4", fg='#13243f', font=('Courier',24), 
-        borderwidth=10, relief=RIDGE, padx=10, pady=5).grid(row=0, columnspan=2, pady=(10,20))
-
-    scroll = Scrollbar(root)
-    chatBox = Text(root, height=25, width=60, font=('Arial',12), spacing1=5, padx=5)
-    scroll.grid(sticky=N+S,row=1, column=1, rowspan=3, pady=10, padx=5)
-    chatBox.grid(row=1, column=0, rowspan=3, pady=10, padx=10)
-    scroll.config(command=chatBox.yview)
-    chatBox.config(yscrollcommand=scroll.set)
+    S = Scrollbar(root)
+    chatBox = Text(root, height=30, width=50)
+    S.grid(row=0, column=1)
+    chatBox.grid(row=0, column=0)
+    S.config(command=chatBox.yview)
+    chatBox.config(yscrollcommand=S.set)
 
     st = StringVar()
     st.set("Enter message here")
-    searchBox = Entry(root, textvariable=st, width=45, font=('Arial',12))
-    searchBox.grid(row=4, column=0, pady=10, padx=10, sticky=W+E)
-    searchBox.bind("<Return>", lambda e, x = searchBox: sendMsg(x))
-    Button(root, text='>', font=('Arial',14) , command= lambda: sendMsg(searchBox)).grid(row=4, column=1, pady=10, padx=5)
+    searchBox = Entry(root, textvariable=st, width=45)
+    searchBox.grid(row=1, column=0)
+    Button(root, text='send', command= lambda: sendMsg(searchBox)).grid(row=1, column=1)
     myThread("client").start()
 
-    #Button(root, text='close', command= lambda: close(root)).grid(row=4)
+    Button(root, text='close', command= lambda: close(root)).grid(row=2)
     root.mainloop()
     sys.exit()
+    print("broke out here?")
 
 if __name__ == "__main__":
     try:
@@ -238,6 +186,4 @@ if __name__ == "__main__":
         print("hi")
     except SystemExit:
         print("teamm")
-        for gif in gifs_used:
-            os.remove(gif)
 

@@ -57,13 +57,13 @@ def chat_server():
                             SOCKET_LIST.remove(sock)
 
                         # at this stage, no data means probably the connection has been broken
-                        broadcast(server_socket, sock, "Client (%s, %s) / User %d is offline\n" % (name[0], name[1], CLIENT_NAMES[name[1]]), "") 
+                        broadcast(server_socket, sock, "User %d is offline\n" % (CLIENT_NAMES[name[1]]), "") 
 
                 # exception 
                 except:
                     print("wellll")
-                    broadcast(server_socket, sock, "Client (%s, %s) / User %d is offline\n" % (name[0], name[1], CLIENT_NAMES[name[1]]), "") 
-                    sys.exit()
+                    name = sock.getpeername()
+                    broadcast(server_socket, sock, "User %d is offline\n" % (CLIENT_NAMES[name[1]]), "") 
 
     server_socket.close()
     
